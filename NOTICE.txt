@@ -1,4 +1,4 @@
-Atelier 0.1 — code fourni sous licence MIT (voir LICENSE).
+Atelier 0.2 — code fourni sous licence MIT (voir LICENSE).
 
 Composants tiers :
 Qt / PySide6 / Shiboken6 : LGPL v3 ou licence commerciale.
