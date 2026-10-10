@@ -21,7 +21,7 @@ jobs:
           QT_QPA_PLATFORM: offscreen
         run: python -m unittest discover -s tests -v
       - name: Construire l’application
-        run: python -m PyInstaller --noconfirm --clean --windowed --onedir --name Atelier main.py
+        run: python -m PyInstaller --noconfirm --clean --windowed --onedir --name Atelier --icon assets/app.ico --add-data "assets;assets" main.py
       - name: Vérifier le démarrage de la version compilée
         shell: pwsh
         env:

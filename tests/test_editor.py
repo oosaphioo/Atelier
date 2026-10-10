@@ -57,4 +57,62 @@ class InterfaceTests(unittest.TestCase):
             w.add_layer();self.assertEqual(len(w.project.layers),2);w.autosave();self.assertEqual(len(Project.load(w.recovery).layers),2)
             w.dirty=False;w.close()
 
+
+
+class VersionTwoTests(unittest.TestCase):
+    def test_mask_hides_without_destroying_and_roundtrip(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            p=Project(40,40);p.layer.image.fill(QColor('red'));p.add_mask()
+            p.checkpoint();p.stroke(QPoint(8,20),QPoint(30,20),'black',10,on_mask=True)
+            self.assertEqual(p.composite().pixelColor(20,20).alpha(),0)
+            self.assertEqual(p.layer.image.pixelColor(20,20).alpha(),255)
+            path=Path(tmp)/'masked.atelier';p.save(path);q=Project.load(path)
+            self.assertEqual(q.composite(),p.composite());q.layer.mask_enabled=False;q.invalidate();self.assertEqual(q.composite().pixelColor(20,20).alpha(),255)
+            p.undo();self.assertEqual(p.composite().pixelColor(20,20).alpha(),255)
+    def test_lasso_clips_and_mask_resizes(self):
+        from PySide6.QtGui import QPainterPath
+        p=Project(40,40);path=QPainterPath();path.moveTo(10,10);path.lineTo(30,10);path.lineTo(20,30);path.closeSubpath()
+        p.stroke(QPoint(0,20),QPoint(39,20),'red',3,selection=path)
+        self.assertGreater(p.layer.image.pixelColor(20,20).alpha(),0);self.assertEqual(p.layer.image.pixelColor(2,20).alpha(),0)
+        p.add_mask(path);p.transform_layer(20,20,90)
+        self.assertEqual(p.layer.mask.size(),p.layer.image.size());p.undo();self.assertEqual(p.layer.image.width(),40)
+    def test_editable_text_and_lock(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            p=Project(300,100);spec={'content':'Bonjour','family':'DejaVu Sans','size':24,'color':'#ff0000'};p.set_text(spec,True,10,20)
+            self.assertEqual(p.layer.x,10);self.assertEqual(p.layer.text['content'],'Bonjour')
+            spec['content']='Au revoir';p.set_text(spec);p.undo();self.assertEqual(p.layer.text['content'],'Bonjour')
+            path=Path(tmp)/'text.atelier';p.save(path);q=Project.load(path);self.assertEqual(q.layer.text['content'],'Bonjour')
+            q.layer.locked=True;before=q.layer.image.copy();q.stroke(QPoint(1,1),QPoint(30,30),'black',10);self.assertEqual(q.layer.image,before)
+            with self.assertRaises(ValueError):q.transform_layer(50,50)
+    def test_multiple_documents_and_selection_copy(self):
+        from PySide6.QtGui import QPainterPath
+        w=Window();w.timer.stop();w.project.layer.image.fill(QColor('red'));w.modified();first=w.project
+        w.open_session(Project(80,60));self.assertEqual(len(w.sessions),2);w.project.layer.image.fill(QColor('blue'));w.modified()
+        w.tabs.setCurrentIndex(0);self.assertIs(w.project,first);self.assertTrue(w.dirty);self.assertEqual(w.project.layer.image.pixelColor(0,0),QColor('red'))
+        path=QPainterPath();path.addEllipse(QRect(10,10,30,30));w.canvas.selection=path;w.selection_to_layer();self.assertEqual(len(w.project.layers),2);self.assertEqual(w.project.layer.x,10)
+        self.assertEqual(w.project.layer.image.pixelColor(0,0).alpha(),0);self.assertEqual(w.project.layer.image.pixelColor(15,15).alpha(),255)
+        for s in w.sessions:s['dirty']=False
+        w.dirty=False;w.store_session();w.close()
+    def test_corner_transform_undo(self):
+        w=Window();w.timer.stop();w.project=Project(200,150);image=blank(60,40);image.fill(QColor('green'));w.project.add('Objet',image);w.project.layer.x=20;w.project.layer.y=20;w.refresh();w.show();app.processEvents();w.set_zoom(1)
+        w.set_tool('Transformer');QTest.mousePress(w.canvas,Qt.LeftButton,Qt.NoModifier,QPoint(111,91));QTest.mouseMove(w.canvas,QPoint(151,111));QTest.mouseRelease(w.canvas,Qt.LeftButton,Qt.NoModifier,QPoint(151,111))
+        self.assertGreater(w.project.layer.image.width(),60);w.undo();self.assertEqual(w.project.layer.image.width(),60)
+        w.dirty=False;w.store_session();w.close()
+
+class RecoveryTests(unittest.TestCase):
+    def test_workspace_restores_all_documents(self):
+        from unittest.mock import patch
+        from PySide6.QtWidgets import QMessageBox
+        with tempfile.TemporaryDirectory() as tmp:
+            w=Window();w.timer.stop();w.recovery=Path(tmp)/'recovery.atelier';w.project.layer.image.fill(QColor('red'));w.modified()
+            w.open_session(Project(20,20));w.project.layer.image.fill(QColor('blue'));w.modified();w.autosave()
+            recovered=Window();recovered.timer.stop();recovered.recovery=w.recovery
+            with patch('main.QMessageBox.question',return_value=QMessageBox.Yes):recovered.offer_recovery()
+            self.assertEqual(len(recovered.sessions),2)
+            recovered.tabs.setCurrentIndex(0);self.assertEqual(recovered.project.layer.image.pixelColor(0,0),QColor('red'))
+            recovered.tabs.setCurrentIndex(1);self.assertEqual(recovered.project.layer.image.pixelColor(0,0),QColor('blue'))
+            for win in (w,recovered):
+                for state in win.sessions:state['dirty']=False
+                win.dirty=False;win.store_session();win.close()
+
 if __name__=='__main__':unittest.main()
