@@ -1,0 +1,14 @@
+Atelier 0.1 — code fourni sous licence MIT (voir LICENSE).
+
+Composants tiers :
+Qt / PySide6 / Shiboken6 : LGPL v3 ou licence commerciale.
+https://www.qt.io/licensing/
+https://download.qt.io/official_releases/QtForPython/
+Pillow : licence HPND, https://github.com/python-pillow/Pillow
+Python : licence PSF, https://docs.python.org/3/license.html
+PyInstaller : GPL avec exception de distribution du bootloader.
+https://pyinstaller.org/en/stable/license.html
+
+Conservez les licences accompagnant les composants distribués. Le dossier
+_internal contient les bibliothèques dynamiques. Les sources et scripts de
+construction de l’application sont inclus dans le projet.
